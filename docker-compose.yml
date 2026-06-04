@@ -1,0 +1,86 @@
+services:
+  proxy:
+    image: 'jc21/nginx-proxy-manager:latest'
+    container_name: proxy
+    restart: unless-stopped
+    environment:
+      DB_SQLITE_FILE: "/data/database.sqlite"
+    ports:
+      - '80:80'
+      - '443:443'
+      - '81:81'
+    volumes:
+      - /cloud/Docker/proxy/data:/data
+      - /cloud/Docker/proxy/letsencrypt:/etc/letsencrypt
+    networks:
+      - stack-network
+  local-ecr:
+    image: registry:2
+    container_name: local-ecr
+    environment:
+      REGISTRY_HTTP_HEADERS_Access-Control-Allow-Origin: '[https://container.tinkeshwar.in]'
+      REGISTRY_HTTP_HEADERS_Access-Control-Allow-Methods: '[HEAD,GET,OPTIONS,DELETE]'
+      REGISTRY_HTTP_HEADERS_Access-Control-Allow-Credentials: '[true]'
+      REGISTRY_HTTP_HEADERS_Access-Control-Allow-Headers: '[Authorization,Accept,Cache-Control]'
+      REGISTRY_HTTP_HEADERS_Access-Control-Expose-Headers: '[Docker-Content-Digest]'
+      REGISTRY_STORAGE_DELETE_ENABLED: 'true'
+    volumes:
+      - /cloud/Registry:/app/lib/registry
+    restart: always
+    networks:
+      - stack-network
+  ecr-ui:
+    image: joxit/docker-registry-ui:latest
+    container_name: ecr-ui
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - NGINX_PROXY_PASS_URL=http://local-ecr:5000
+      - SINGLE_REGISTRY=true
+      - REGISTRY_TITLE=Docker Registry UI
+      - DELETE_IMAGES=true
+      - SHOW_CONTENT_DIGEST=true
+      - SHOW_CATALOG_NB_TAGS=true
+      - CATALOG_MIN_BRANCHES=1
+      - CATALOG_MAX_BRANCHES=1
+      - TAGLIST_PAGE_SIZE=100
+      - REGISTRY_SECURED=false
+      - CATALOG_ELEMENTS_LIMIT=1000
+    depends_on:
+      - local-ecr
+    restart: always
+    networks:
+      - stack-network
+  git:
+    image: codeberg.org/forgejo/forgejo:15
+    container_name: git
+    environment:
+      - USER_UID=1000
+      - USER_GID=1000
+      - TZ=Asia/Kolkata
+    volumes:
+      - /cloud/Docker/git/config:/data
+    restart: always
+    networks:
+      - stack-network
+  runner:
+    image: data.forgejo.org/forgejo/runner:12
+    container_name: runner
+    restart: unless-stopped
+    group_add:
+      - "999"
+    depends_on:
+      - git
+    environment:
+      - TZ=Asia/Kolkata
+    volumes:
+      - /cloud/Docker/git/config/runner:/data
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /usr/bin/docker:/usr/bin/docker:ro
+    command: ["forgejo-runner", "daemon", "--config", "/data/config.yml"]
+    networks:
+      - stack-network
+
+networks:
+  stack-network:
+    driver: bridge
