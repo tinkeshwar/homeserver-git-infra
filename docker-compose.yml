@@ -84,3 +84,4 @@ services:
 networks:
   stack-network:
     driver: bridge
+    name: shared-proxy-network
