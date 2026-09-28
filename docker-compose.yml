@@ -58,6 +58,23 @@ services:
     command: ["forgejo-runner", "daemon", "--config", "/data/config.yml"]
     networks:
       - stack-network
+  runner-lite:
+    image: data.forgejo.org/forgejo/runner:13
+    container_name: runner-lite
+    restart: unless-stopped
+    group_add:
+      - "999"
+    depends_on:
+      - git
+    environment:
+      - TZ=Asia/Kolkata
+    volumes:
+      - /cloud/Docker/git/config/runner:/data
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /usr/bin/docker:/usr/bin/docker:ro
+    command: ["forgejo-runner", "daemon", "--config", "/data/config-lite.yml"]
+    networks:
+      - stack-network
 
 networks:
   stack-network:
